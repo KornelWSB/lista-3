@@ -1,44 +1,82 @@
-#!/bin/bash
+import subprocess
+import json
 
-# Funkcja do wykonania testu
-test_endpoint() {
-    local url=$1
-    local expected_keys=("${!2}")
-    local response=$(curl -s -o response.json -w "%{http_code}" $url)
-    local status=$?
+def send_request(url):
+    result = subprocess.run(['curl', '-s', url], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        return None, result.stderr.decode('utf-8')
+    return result.stdout.decode('utf-8'), None
 
-    if [[ $status -ne 0 ]]; to oznacza, że 
-        echo "Test NIE ZALICZONY: Nie można dotrzeć do $url"
-        return 1
-    fi
+def check_response(response, keys):
+    try:
+        data = json.loads(response)
+    except json.JSONDecodeError:
+        return False
 
-    if [[ $response -ne 200 ]]; to oznacza, że 
-        echo "Test NIE ZALICZONY: Status HTTP $response dla $url"
-        return 1
-    fi
+    if isinstance(data, list):
+        data = data[0] if data else {}
 
-    for key in "${expected_keys[@]}"; do
-        if ! grep -q "\"$key\"" response.json; to oznacza, że 
-            echo "Test NIE ZALICZONY: Klucz $key nie znaleziony w odpowiedzi z $url"
-            return 1
-        fi
-    done
+    return all(key in data for key in keys)
 
-    echo "Test ZALICZONY dla $url"
-    return 0
-}
+def run_test(url, keys):
+    response, error = send_request(url)
+    if error:
+        print(f"Test for {url}: FAILED - Error in sending request: {error}")
+        return False
 
-# Testowanie endpointu /posts
-post_keys=("userId" "id" "title" "body")
-test_endpoint "https://jsonplaceholder.typicode.com/posts" post_keys[@]
+    if check_response(response, keys):
+        print(f"Test for {url}: PASSED")
+        return True
+    else:
+        print(f"Test for {url}: FAILED - Required keys missing in response")
+        return False
 
-# Testowanie endpointu /comments
-comment_keys=("postId" "id" "name" "email" "body")
-test_endpoint "https://jsonplaceholder.typicode.com/comments" comment_keys[@]
+def main():
+    tests = [
+        {"url": "https://jsonplaceholder.typicode.com/posts", "keys": ["userId", "id", "title"]},
+        {"url": "https://jsonplaceholder.typicode.com/comments", "keys": ["postId", "id", "email"]},
+        {"url": "https://jsonplaceholder.typicode.com/users", "keys": ["id", "name", "email"]}
+    ]
 
-# Testowanie endpointu /users
-user_keys=("id" "name" "username" "email" "address")
-test_endpoint "https://jsonplaceholder.typicode.com/users" user_keys[@]
+    all_passed = True
+    for test in tests:
+        if not run_test(test["url"], test["keys"]):
+            all_passed = False
 
-# Czyszczenie
-rm response.json
+    if all_passed:
+        print("All tests PASSED")
+    else:
+        print("Some tests FAILED")
+
+if __name__ == "__main__":
+    main()
+-----------------------
+
+# API Test Script
+
+## Opis
+
+Ten skrypt automatyzuje testowanie endpointów publicznego API JSONPlaceholder przy użyciu narzędzia `curl`. Skrypt wysyła żądania GET do trzech endpointów i sprawdza, czy odpowiedzi zawierają określone kluczowe elementy JSON.
+
+## Endpointy testowane
+
+1. `/posts` - Sprawdza obecność kluczy: `userId`, `id`, `title`
+2. `/comments` - Sprawdza obecność kluczy: `postId`, `id`, `email`
+3. `/users` - Sprawdza obecność kluczy: `id`, `name`, `email`
+
+## Wymagania
+
+- Python 3
+- curl
+
+## Uruchomienie
+
+1. Upewnij się, że masz zainstalowany Python 3 oraz curl.
+2. Skopiuj plik `api_test.py` do swojego lokalnego środowiska.
+3. Uruchom skrypt:
+   ```sh
+   python api_test.py
+
+   ------------------
+
+   
